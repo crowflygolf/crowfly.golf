@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>CrowFly</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #1a1a1a;
+      --surface: #2d2d2d;
+      --primary: #00ff88;
+      --danger: #ff4444;
+      --text-primary: #ffffff;
+      --text-secondary: #888888;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text-primary);
+    }
+
+    #map {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+
+    #status {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    #status.active {
+      color: var(--primary);
+    }
+
+    #status .hole {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    #button-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      display: flex;
+      gap: 8px;
+      padding: 24px 16px;
+      padding-bottom: calc(24px + env(safe-area-inset-bottom, 0));
+      background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+    }
+
+    .btn {
+      flex: 1;
+      height: 56px;
+      border: none;
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    .btn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    .btn:disabled {
+      background: var(--bg);
+      color: #555;
+      cursor: not-allowed;
+    }
+
+    .btn.primary:not(:disabled) {
+      color: var(--primary);
+    }
+
+    .btn.danger:not(:disabled) {
+      color: var(--danger);
+    }
+
+    #toast-container {
+      position: fixed;
+      bottom: 140px;
+      left: 16px;
+      right: 16px;
+      z-index: 1001;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--surface);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      text-align: center;
+      animation: toast-in 0.2s ease-out;
+      border-left: 3px solid var(--primary);
+    }
+
+    .toast.error {
+      border-left-color: var(--danger);
+    }
+
+    .toast.hiding {
+      animation: toast-out 0.2s ease-in forwards;
+    }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes toast-out {
+      from { opacity: 1; transform: translateY(0); }
+      to { opacity: 0; transform: translateY(-10px); }
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2.5); opacity: 0; }
+    }
+
+    @keyframes drop-in {
+      0% { transform: translateY(-20px) scale(0.8); opacity: 0; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    .user-marker {
+      width: 20px;
+      height: 20px;
+      background: var(--primary);
+      border-radius: 50%;
+      position: relative;
+    }
+
+    .user-marker::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: var(--primary);
+      animation: pulse 1.5s ease-out infinite;
+    }
+
+    .user-marker-inner {
+      position: absolute;
+      inset: 4px;
+      background: var(--primary);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--primary);
+    }
+
+    .leaflet-marker-icon.user-marker {
+      background: transparent;
+    }
+
+    .shot-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--bg);
+      background: var(--primary);
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      animation: drop-in 0.15s ease-out;
+    }
+
+    .shot-marker.tee {
+      background: #fff;
+      border: 2px solid var(--primary);
+    }
+
+    .shot-marker.low-accuracy {
+      border: 2px solid #ffaa00;
+    }
+
+    .leaflet-control-attribution {
+      background: rgba(0,0,0,0.5) !important;
+      color: var(--text-secondary) !important;
+      font-size: 10px !important;
+    }
+
+    .leaflet-control-attribution a {
+      color: var(--text-secondary) !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="status">No active round</div>
+  <div id="button-bar">
+    <button id="btn-start" class="btn primary">Start new hole</button>
+    <button id="btn-shot" class="btn" disabled>Log shot</button>
+    <button id="btn-finish" class="btn danger" disabled>Finish round</button>
+  </div>
+  <div id="toast-container"></div>
+
+  <script>
+    const Storage = {
+      get(key, defaultValue = null) {
+        try {
+          const item = localStorage.getItem(key);
+          return item ? JSON.parse(item) : defaultValue;
+        } catch {
+          return defaultValue;
+        }
+      },
+      set(key, value) {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {
+          console.error('Storage error:', e);
+        }
+      },
+      remove(key) {
+        localStorage.removeItem(key);
+      }
+    };
+
+    const STORAGE_KEYS = {
+      CURRENT_ROUND: 'crowfly_current_round',
+      COMPLETED_ROUNDS: 'crowfly_rounds'
+    };
+
+    let map, userMarker, watchId;
+    let markers = [];
+    let state = {
+      currentRound: null,
+      currentHole: null,
+      isTracking: false
+    };
+
+    const statusEl = document.getElementById('status');
+    const btnStart = document.getElementById('btn-start');
+    const btnShot = document.getElementById('btn-shot');
+    const btnFinish = document.getElementById('btn-finish');
+    const toastContainer = document.getElementById('toast-container');
+
+    function initMap() {
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: true
+      });
+
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri'
+      }).addTo(map);
+
+      map.setView([0, 0], 14);
+
+      userMarker = L.marker([0, 0], {
+        icon: L.divIcon({
+          className: 'user-marker',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        })
+      });
+    }
+
+    function updateUserMarker(lat, lng) {
+      if (!userMarker) return;
+      userMarker.setLatLng([lat, lng]);
+      if (!map.hasLayer(userMarker)) {
+        userMarker.addTo(map);
+      }
+    }
+
+    function panToUser() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            map.setView([latitude, longitude], 18);
+            updateUserMarker(latitude, longitude);
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      }
+    }
+
+    function addShotMarker(lat, lng, shotNumber, isTee = false, isLowAccuracy = false) {
+      const icon = L.divIcon({
+        className: '',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      const el = document.createElement('div');
+      el.className = 'shot-marker' + (isTee ? ' tee' : '') + (isLowAccuracy ? ' low-accuracy' : '');
+      el.style.width = '28px';
+      el.style.height = '28px';
+      el.textContent = shotNumber;
+      icon.options.html = el;
+
+      const marker = L.marker([lat, lng], { icon }).addTo(map);
+      markers.push(marker);
+    }
+
+    function clearMarkers() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = document.createElement('div');
+      toast.className = 'toast' + (type === 'error' ? ' error' : '');
+      toast.textContent = message;
+      toastContainer.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 200);
+      }, 3000);
+    }
+
+    function updateStatus() {
+      if (!state.currentRound) {
+        statusEl.textContent = 'No active round';
+        statusEl.classList.remove('active');
+      } else {
+        const hole = state.currentHole || 1;
+        const shots = state.currentRound.holes.find(h => h.number === hole)?.shots.length || 0;
+        statusEl.innerHTML = `<span class="hole">Hole ${hole}</span> | ${shots} shot${shots !== 1 ? 's' : ''}`;
+        statusEl.classList.add('active');
+      }
+    }
+
+    function updateButtons() {
+      const hasRound = !!state.currentRound;
+
+      btnShot.disabled = !hasRound;
+      btnFinish.disabled = !hasRound;
+
+      if (hasRound) {
+        btnStart.textContent = 'Start new hole';
+      } else {
+        btnStart.textContent = 'Start new hole';
+      }
+    }
+
+    function startGeolocation() {
+      if (watchId !== undefined) return;
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          updateUserMarker(latitude, longitude);
+        },
+        (err) => {
+          console.error('Geolocation error:', err);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 10000
+        }
+      );
+    }
+
+    function stopGeolocation() {
+      if (watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = undefined;
+      }
+    }
+
+    function getCurrentPosition() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation not supported'));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(pos),
+          (err) => reject(err),
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      });
+    }
+
+    function loadState() {
+      const savedRound = Storage.get(STORAGE_KEYS.CURRENT_ROUND);
+      if (savedRound) {
+        state.currentRound = savedRound;
+        state.currentHole = savedRound.holes[savedRound.holes.length - 1]?.number || 1;
+        rebuildMarkers();
+      }
+
+      updateStatus();
+      updateButtons();
+    }
+
+    function saveState() {
+      if (state.currentRound) {
+        Storage.set(STORAGE_KEYS.CURRENT_ROUND, state.currentRound);
+      }
+    }
+
+    function rebuildMarkers() {
+      if (!state.currentRound) return;
+
+      state.currentRound.holes.forEach(hole => {
+        hole.shots.forEach((shot, idx) => {
+          addShotMarker(
+            shot.coordinates.lat,
+            shot.coordinates.lng,
+            idx + 1,
+            idx === 0,
+            shot.accuracy > 20
+          );
+        });
+      });
+    }
+
+    function handleStartHole() {
+      if (!state.currentRound) {
+        state.currentRound = {
+          id: crypto.randomUUID(),
+          startedAt: new Date().toISOString(),
+          completedAt: null,
+          holes: []
+        };
+        showToast('Round started');
+      }
+
+      const nextHoleNumber = state.currentHole ? state.currentHole + 1 : 1;
+      state.currentHole = nextHoleNumber;
+
+      state.currentRound.holes.push({
+        number: nextHoleNumber,
+        shots: []
+      });
+
+      saveState();
+      updateStatus();
+      updateButtons();
+      showToast(`Hole ${nextHoleNumber} started`);
+    }
+
+    async function handleLogShot() {
+      if (!state.currentRound || !state.currentHole) return;
+
+      try {
+        const pos = await getCurrentPosition();
+        const { latitude, longitude, accuracy } = pos.coords;
+
+        const shot = {
+          id: crypto.randomUUID(),
+          coordinates: { lat: latitude, lng: longitude },
+          timestamp: new Date().toISOString(),
+          accuracy
+        };
+
+        const hole = state.currentRound.holes.find(h => h.number === state.currentHole);
+        if (hole) {
+          hole.shots.push(shot);
+        }
+
+        const shotNumber = hole.shots.length;
+        addShotMarker(latitude, longitude, shotNumber, shotNumber === 1, accuracy > 20);
+
+        saveState();
+        updateStatus();
+
+        if (accuracy > 20) {
+          showToast(`Shot ${shotNumber} logged (low accuracy: ${Math.round(accuracy)}m)`, 'error');
+        } else {
+          showToast(`Shot ${shotNumber} logged`);
+        }
+      } catch (err) {
+        if (err.code === 1) {
+          showToast('Location permission denied', 'error');
+        } else if (err.code === 2) {
+          showToast('Location unavailable', 'error');
+        } else {
+          showToast('Could not get location', 'error');
+        }
+      }
+    }
+
+    function handleFinishRound() {
+      if (!state.currentRound) return;
+
+      state.currentRound.completedAt = new Date().toISOString();
+
+      const completedRounds = Storage.get(STORAGE_KEYS.COMPLETED_ROUNDS, []);
+      completedRounds.push(state.currentRound);
+      Storage.set(STORAGE_KEYS.COMPLETED_ROUNDS, completedRounds);
+
+      Storage.remove(STORAGE_KEYS.CURRENT_ROUND);
+
+      const holesPlayed = state.currentRound.holes.length;
+      const totalShots = state.currentRound.holes.reduce((sum, h) => sum + h.shots.length, 0);
+
+      state.currentRound = null;
+      state.currentHole = null;
+
+      stopGeolocation();
+
+      updateStatus();
+      updateButtons();
+
+      showToast(`Round saved: ${holesPlayed} hole${holesPlayed !== 1 ? 's' : ''}, ${totalShots} shot${totalShots !== 1 ? 's' : ''}`);
+    }
+
+    btnStart.addEventListener('click', handleStartHole);
+    btnShot.addEventListener('click', handleLogShot);
+    btnFinish.addEventListener('click', handleFinishRound);
+
+    initMap();
+    loadState();
+    startGeolocation();
+    panToUser();
+  </script>
+</body>
+</html>
