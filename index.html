@@ -185,6 +185,27 @@
       box-shadow: 0 0 8px var(--primary);
     }
 
+    .user-marker-arrow {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      margin-left: -5px;
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-bottom: 10px solid var(--primary);
+      transform: rotate(var(--heading, 0deg));
+      transform-origin: center bottom;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.2s;
+      filter: drop-shadow(0 0 4px var(--primary));
+    }
+
+    .user-marker-arrow.visible {
+      opacity: 1;
+    }
+
     .leaflet-marker-icon.user-marker {
       background: transparent;
     }
@@ -264,7 +285,8 @@
     let state = {
       currentRound: null,
       currentHole: null,
-      isTracking: false
+      isTracking: false,
+      userHeading: null
     };
 
     const statusEl = document.getElementById('status');
@@ -288,15 +310,32 @@
       userMarker = L.marker([0, 0], {
         icon: L.divIcon({
           className: 'user-marker',
-          iconSize: [20, 20],
-          iconAnchor: [10, 10]
+          iconSize: [20, 40],
+          iconAnchor: [10, 20],
+          html: `<div class="user-marker-inner"></div><div class="user-marker-arrow"></div>`
         })
-      });
+      }).addTo(map);
     }
 
-    function updateUserMarker(lat, lng) {
+    function updateUserMarker(lat, lng, heading = null, speed = null) {
       if (!userMarker) return;
       userMarker.setLatLng([lat, lng]);
+
+      state.userHeading = heading;
+
+      const markerEl = userMarker.getElement();
+      if (markerEl) {
+        const arrow = markerEl.querySelector('.user-marker-arrow');
+        if (arrow) {
+          if (heading !== null && !isNaN(heading)) {
+            arrow.style.setProperty('--heading', `${heading}deg`);
+            arrow.classList.add('visible');
+          } else {
+            arrow.classList.remove('visible');
+          }
+        }
+      }
+
       if (!map.hasLayer(userMarker)) {
         userMarker.addTo(map);
       }
@@ -376,21 +415,21 @@
       }
     }
 
-    function startGeolocation() {
+function startGeolocation() {
       if (watchId !== undefined) return;
 
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
-          updateUserMarker(latitude, longitude);
+          const { latitude, longitude, accuracy, heading, speed } = pos.coords;
+          updateUserMarker(latitude, longitude, heading, speed);
         },
         (err) => {
           console.error('Geolocation error:', err);
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 10000
+          maximumAge: 0,
+          timeout: 5000
         }
       );
     }
