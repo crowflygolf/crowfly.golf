@@ -453,6 +453,34 @@
       color: var(--bg);
     }
 
+    .mode-toggle {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .mode-btn.active {
+      background: var(--surface);
+      color: var(--text-primary);
+    }
+
     @keyframes modal-in {
       from { opacity: 0; transform: scale(0.95); }
       to { opacity: 1; transform: scale(1); }
@@ -651,7 +679,8 @@
 
     const STORAGE_KEYS = {
       CURRENT_ROUND: 'crowfly_current_round',
-      COMPLETED_ROUNDS: 'crowfly_rounds'
+      COMPLETED_ROUNDS: 'crowfly_rounds',
+      CLUB_MODE: 'crowfly_club_mode'
     };
 
     const CLUB_SECTIONS = [
@@ -663,7 +692,32 @@
       { title: 'Putter', items: ['PU'] }
     ];
 
+    const DISC_SECTIONS = [
+      { title: 'Putter', items: ['PU'] },
+      { title: 'Approach', items: ['AP'] },
+      { title: 'Mid-Range', items: ['MI'] },
+      { title: 'Fairway Driver', items: ['FD'] },
+      { title: 'Distance Driver', items: ['DD'] }
+    ];
+
+    const DISC_NAMES = {
+      PU: 'Putter',
+      AP: 'Approach',
+      MI: 'Mid-Range',
+      FD: 'Fairway',
+      DD: 'Distance'
+    };
+
+    function getClubSections() {
+      return state.clubMode === 'disc' ? DISC_SECTIONS : CLUB_SECTIONS;
+    }
+
+    function getDefaultClub() {
+      return state.clubMode === 'disc' ? 'DD' : 'DR';
+    }
+
     function clubDisplay(id) {
+      if (state.clubMode === 'disc' && DISC_NAMES[id]) return DISC_NAMES[id];
       if (id === 'DR') return 'Driver';
       if (id === 'PU') return 'Putter';
       return id;
@@ -680,6 +734,7 @@
       currentRound: null,
       currentHole: null,
       currentClub: 'DR',
+      clubMode: 'golf',
       isTracking: false,
       userHeading: null
     };
@@ -935,7 +990,7 @@ function startGeolocation() {
 
       const nextHoleNumber = state.currentHole ? state.currentHole + 1 : 1;
       state.currentHole = nextHoleNumber;
-      state.currentClub = 'DR';
+      state.currentClub = getDefaultClub();
 
       state.currentRound.holes.push({
         number: nextHoleNumber,
@@ -1034,6 +1089,8 @@ function startGeolocation() {
 
     document.getElementById('gps-btn').addEventListener('click', panToUser);
 
+    state.clubMode = Storage.get(STORAGE_KEYS.CLUB_MODE, 'golf');
+    state.currentClub = getDefaultClub();
     initMap();
     loadState();
     startGeolocation();
@@ -1216,7 +1273,15 @@ function startGeolocation() {
     // ── Club Picker ──
 
     function renderClubPicker() {
-      clubList.innerHTML = CLUB_SECTIONS.map(section => {
+      const modeHtml = `
+        <div class="mode-toggle">
+          <button class="mode-btn${state.clubMode === 'golf' ? ' active' : ''}" data-mode="golf">Golf</button>
+          <button class="mode-btn${state.clubMode === 'disc' ? ' active' : ''}" data-mode="disc">Disc</button>
+        </div>
+      `;
+
+      const sections = getClubSections();
+      const sectionsHtml = sections.map(section => {
         const itemsHtml = section.items.map(id => {
           const active = id === state.currentClub ? ' active' : '';
           return `<button class="club-item${active}" data-club="${id}">${clubDisplay(id)}</button>`;
@@ -1226,6 +1291,18 @@ function startGeolocation() {
           : '';
         return label + `<div class="club-grid">${itemsHtml}</div>`;
       }).join('');
+
+      clubList.innerHTML = modeHtml + sectionsHtml;
+
+      clubList.querySelectorAll('.mode-btn').forEach(el => {
+        el.addEventListener('click', () => {
+          state.clubMode = el.dataset.mode;
+          state.currentClub = getDefaultClub();
+          Storage.set(STORAGE_KEYS.CLUB_MODE, state.clubMode);
+          updateClubPill();
+          renderClubPicker();
+        });
+      });
 
       clubList.querySelectorAll('.club-item').forEach(el => {
         el.addEventListener('click', () => {
