@@ -308,7 +308,7 @@
       color: var(--text-primary);
     }
 
-    #club-overlay {
+    .overlay {
       position: fixed;
       inset: 0;
       z-index: 2000;
@@ -317,17 +317,17 @@
       justify-content: center;
     }
 
-    #club-overlay.hidden {
+    .overlay.hidden {
       display: none;
     }
 
-    #club-backdrop {
+    .backdrop {
       position: absolute;
       inset: 0;
       background: rgba(0,0,0,0.6);
     }
 
-    #club-modal {
+    .modal {
       position: relative;
       background: var(--surface);
       border-radius: 16px;
@@ -339,7 +339,7 @@
       animation: modal-in 0.2s ease-out;
     }
 
-    #club-close-btn {
+    .modal-close {
       position: absolute;
       top: 12px;
       right: 16px;
@@ -354,7 +354,7 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    #club-title {
+    .modal-title {
       font-size: 15px;
       font-weight: 600;
       color: var(--text-primary);
@@ -402,62 +402,9 @@
       color: var(--bg);
     }
 
-    #history-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 2000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    #history-overlay.hidden {
-      display: none;
-    }
-
-    #history-backdrop {
-      position: absolute;
-      inset: 0;
-      background: rgba(0,0,0,0.6);
-    }
-
-    #history-modal {
-      position: relative;
-      background: var(--surface);
-      border-radius: 16px;
-      width: 90%;
-      max-width: 400px;
-      max-height: 80vh;
-      overflow-y: auto;
-      padding: 24px;
-      animation: modal-in 0.2s ease-out;
-    }
-
     @keyframes modal-in {
       from { opacity: 0; transform: scale(0.95); }
       to { opacity: 1; transform: scale(1); }
-    }
-
-    #history-close-btn {
-      position: absolute;
-      top: 12px;
-      right: 16px;
-      background: none;
-      border: none;
-      color: var(--text-secondary);
-      font-size: 22px;
-      cursor: pointer;
-      font-family: inherit;
-      line-height: 1;
-      padding: 4px;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    #history-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 16px;
     }
 
     .history-entry {
@@ -578,20 +525,20 @@
   </div>
   <div id="toast-container"></div>
 
-  <div id="history-overlay" class="hidden">
-    <div id="history-backdrop"></div>
-    <div id="history-modal">
-      <div id="history-close-btn">&times;</div>
-      <h2 id="history-title">Past rounds</h2>
+  <div id="history-overlay" class="overlay hidden">
+    <div id="history-backdrop" class="backdrop"></div>
+    <div id="history-modal" class="modal">
+      <div id="history-close-btn" class="modal-close">&times;</div>
+      <h2 id="history-title" class="modal-title">Past rounds</h2>
       <div id="history-list"></div>
     </div>
   </div>
 
-  <div id="club-overlay" class="hidden">
-    <div id="club-backdrop"></div>
-    <div id="club-modal">
-      <div id="club-close-btn">&times;</div>
-      <h2 id="club-title">Select club</h2>
+  <div id="club-overlay" class="overlay hidden">
+    <div id="club-backdrop" class="backdrop"></div>
+    <div id="club-modal" class="modal">
+      <div id="club-close-btn" class="modal-close">&times;</div>
+      <h2 id="club-title" class="modal-title">Select club</h2>
       <div id="club-list"></div>
     </div>
   </div>
