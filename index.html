@@ -311,6 +311,31 @@
       color: var(--text-primary);
     }
 
+    #info-btn {
+      position: fixed;
+      top: 68px;
+      left: 16px;
+      z-index: 1000;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: none;
+      color: var(--text-secondary);
+      padding: 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 0;
+    }
+
+    #info-btn:hover {
+      color: var(--text-primary);
+    }
+
     #history-btn {
       position: fixed;
       top: 16px;
@@ -544,6 +569,13 @@
       <line x1="18" y1="12" x2="22" y2="12"/>
     </svg>
   </button>
+  <button id="info-btn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="12" x2="12" y2="16"/>
+      <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+  </button>
   <button id="history-btn">Past rounds</button>
   <div id="button-bar">
     <div class="club-row" id="club-row">
@@ -577,6 +609,21 @@
       <div id="club-close-btn" class="modal-close">&times;</div>
       <h2 id="club-title" class="modal-title">Select club</h2>
       <div id="club-list"></div>
+    </div>
+  </div>
+
+  <div id="info-overlay" class="overlay hidden">
+    <div id="info-backdrop" class="backdrop"></div>
+    <div id="info-modal" class="modal">
+      <div id="info-close-btn" class="modal-close">&times;</div>
+      <h2 class="modal-title">Usage</h2>
+      <div style="font-size: 13px; line-height: 1.6; color: #999;">
+        <p><strong>1.</strong> Tap <strong>Start new hole</strong> to begin a hole (your first tap starts the round).</p>
+        <p><strong>2.</strong> Hit your shot, then tap <strong>Log Shot</strong> where you stand.</p>
+        <p><strong>3.</strong> Walk to your ball. Hit again. Tap <strong>Log Shot</strong>.</p>
+        <p><strong>4.</strong> Repeat to the green. Tap <strong>Start new hole</strong> after logging the hole-out putt.</p>
+        <p><strong>5.</strong> Tap <strong>Finish round</strong> when the round is complete.</p>
+      </div>
     </div>
   </div>
 
@@ -651,6 +698,10 @@
     const clubCloseBtn = document.getElementById('club-close-btn');
     const clubList = document.getElementById('club-list');
     const toastContainer = document.getElementById('toast-container');
+    const infoOverlay = document.getElementById('info-overlay');
+    const infoBackdrop = document.getElementById('info-backdrop');
+    const infoCloseBtn = document.getElementById('info-close-btn');
+    const infoBtn = document.getElementById('info-btn');
 
     function initMap() {
       map = L.map('map', {
@@ -1198,6 +1249,12 @@ function startGeolocation() {
     btnClub.addEventListener('click', openClubPicker);
     clubCloseBtn.addEventListener('click', closeClubPicker);
     clubBackdrop.addEventListener('click', closeClubPicker);
+
+    // ── Info Modal ──
+
+    infoBtn.addEventListener('click', () => infoOverlay.classList.remove('hidden'));
+    infoCloseBtn.addEventListener('click', () => infoOverlay.classList.add('hidden'));
+    infoBackdrop.addEventListener('click', () => infoOverlay.classList.add('hidden'));
 
     updateClubPill();
   </script>
