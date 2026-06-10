@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>CrowFly</title>
+  <title>crowfly</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -442,7 +442,8 @@
     }
 
     .history-entry.expanded .history-entry-details {
-      max-height: 400px;
+      max-height: none;
+      overflow: visible;
     }
 
     .history-entry-details-inner {
@@ -591,6 +592,7 @@
 
     let map, userMarker, watchId;
     let markers = [];
+    let polylines = [];
     let state = {
       currentRound: null,
       currentHole: null,
@@ -598,6 +600,8 @@
       isTracking: false,
       userHeading: null
     };
+    let viewingPastRound = false;
+    let viewedPastRoundData = null;
 
     const statusEl = document.getElementById('status');
     const btnStart = document.getElementById('btn-start');
@@ -615,11 +619,13 @@
     function initMap() {
       map = L.map('map', {
         zoomControl: false,
-        attributionControl: true
+        attributionControl: true,
+        maxZoom: 20
       });
 
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles © Esri'
+        attribution: 'Tiles © Esri',
+        maxZoom: 20
       }).addTo(map);
 
       map.setView([0, 0], 14);
@@ -693,6 +699,8 @@
     function clearMarkers() {
       markers.forEach(m => map.removeLayer(m));
       markers = [];
+      polylines.forEach(p => map.removeLayer(p));
+      polylines = [];
     }
 
     function showToast(message, type = 'success') {
@@ -727,14 +735,16 @@
       const hasRound = !!state.currentRound;
 
       btnShot.disabled = !hasRound;
-      btnFinish.disabled = !hasRound;
-
       clubRow.classList.toggle('hidden', !hasRound);
 
-      if (hasRound) {
-        btnStart.textContent = 'Start new hole';
+      if (viewingPastRound) {
+        btnFinish.disabled = false;
+        btnFinish.textContent = 'Export round';
+        btnFinish.className = 'btn primary';
       } else {
-        btnStart.textContent = 'Start new hole';
+        btnFinish.disabled = !hasRound;
+        btnFinish.textContent = 'Finish round';
+        btnFinish.className = 'btn danger';
       }
     }
 
@@ -810,10 +820,21 @@ function startGeolocation() {
             shot.accuracy > 20
           );
         });
+        if (hole.shots.length >= 2) {
+          const coords = hole.shots.map(s => [s.coordinates.lat, s.coordinates.lng]);
+          const polyline = L.polyline(coords, {
+            color: '#00ff88',
+            weight: 2,
+            opacity: 0.5,
+            dashArray: '5, 5'
+          }).addTo(map);
+          polylines.push(polyline);
+        }
       });
     }
 
     function handleStartHole() {
+      clearPastRoundView();
       clearMarkers();
       if (!state.currentRound) {
         state.currentRound = {
@@ -842,6 +863,8 @@ function startGeolocation() {
     }
 
     async function handleLogShot() {
+      if ((!state.currentRound || !state.currentHole) && !viewingPastRound) return;
+      clearPastRoundView();
       if (!state.currentRound || !state.currentHole) return;
 
       try {
@@ -885,6 +908,7 @@ function startGeolocation() {
     }
 
     function handleFinishRound() {
+      clearPastRoundView();
       if (!state.currentRound) return;
       clearMarkers();
 
@@ -912,7 +936,14 @@ function startGeolocation() {
 
     btnStart.addEventListener('click', handleStartHole);
     btnShot.addEventListener('click', handleLogShot);
-    btnFinish.addEventListener('click', handleFinishRound);
+    btnFinish.addEventListener('click', () => {
+      if (viewingPastRound) {
+        exportRoundCSV(viewedPastRoundData);
+        showToast('Round exported');
+      } else {
+        handleFinishRound();
+      }
+    });
 
     initMap();
     loadState();
@@ -996,6 +1027,41 @@ function startGeolocation() {
       });
     }
 
+    function exportRoundCSV(round) {
+      const header = ['Round ID', 'Date', 'Hole', 'Shot', 'Latitude', 'Longitude', 'Accuracy (m)', 'Club'];
+      const rows = round.holes.flatMap(hole =>
+        hole.shots.map((shot, idx) => [
+          round.id,
+          round.startedAt,
+          hole.number,
+          idx + 1,
+          shot.coordinates.lat,
+          shot.coordinates.lng,
+          shot.accuracy,
+          shot.club
+        ])
+      );
+
+      const csv = [header, ...rows].map(row =>
+        row.map(cell => {
+          const str = String(cell ?? '');
+          return str.includes(',') || str.includes('"') || str.includes('\n')
+            ? '"' + str.replace(/"/g, '""') + '"'
+            : str;
+        }).join(',')
+      ).join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `crowfly-round-${round.startedAt.slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     function viewPastRound(round) {
       clearMarkers();
       round.holes.forEach(hole => {
@@ -1008,6 +1074,16 @@ function startGeolocation() {
             shot.accuracy > 20
           );
         });
+        if (hole.shots.length >= 2) {
+          const coords = hole.shots.map(s => [s.coordinates.lat, s.coordinates.lng]);
+          const polyline = L.polyline(coords, {
+            color: '#00ff88',
+            weight: 2,
+            opacity: 0.5,
+            dashArray: '5, 5'
+          }).addTo(map);
+          polylines.push(polyline);
+        }
       });
 
       const coords = round.holes.flatMap(h => h.shots.map(s => [s.coordinates.lat, s.coordinates.lng]));
@@ -1016,7 +1092,23 @@ function startGeolocation() {
       }
 
       closeHistory();
+
+      viewingPastRound = true;
+      viewedPastRoundData = round;
+      updateButtons();
+
       showToast(`Viewing round from ${formatDate(round.startedAt)}`);
+    }
+
+    function clearPastRoundView() {
+      if (!viewingPastRound) return;
+      viewingPastRound = false;
+      viewedPastRoundData = null;
+      clearMarkers();
+      if (state.currentRound) {
+        rebuildMarkers();
+      }
+      updateButtons();
     }
 
     function openHistory() {
