@@ -500,6 +500,26 @@
       to { opacity: 1; transform: scale(1); }
     }
 
+    .modal pre {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      margin: 0;
+    }
+
+    .modal code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--text-primary);
+    }
+
+    .modal code .kw { color: var(--primary); }
+    .modal code .fn { color: #66b3ff; }
+    .modal code .mod { color: #ffaa66; }
+    .modal code .comment { color: #666; font-style: italic; }
+
     .history-entry {
       background: var(--bg);
       border-radius: 8px;
@@ -658,14 +678,24 @@
     <div id="info-backdrop" class="backdrop"></div>
     <div id="info-modal" class="modal">
       <div id="info-close-btn" class="modal-close">&times;</div>
-      <h2 class="modal-title">Usage</h2>
-      <div style="font-size: 13px; line-height: 1.6; color: #999;">
-        <p><strong>1.</strong> Tap <strong>Start new round</strong> to begin.</p>
-        <p><strong>2.</strong> Hit your shot, then tap <strong>Log Shot</strong> where you stand.</p>
-        <p><strong>3.</strong> Walk to your ball. Hit again. Tap <strong>Log Shot</strong>.</p>
-        <p><strong>4.</strong> Repeat to the hole. Tap <strong>Hole out</strong> to log the hole-out and start the next hole.</p>
-        <p><strong>5.</strong> Tap <strong>Finish round</strong> when the round is complete.</p>
-      </div>
+      <h2 class="modal-title">SKILL.md</h2>
+      <pre><code><span class="comment">---</span>
+<span class="mod">name</span>: crowfly-golf
+<span class="mod">description</span>: Track golf rounds
+<span class="comment">---</span>
+
+<span class="kw">## Workflow</span>
+
+<span class="fn">1.</span> <span class="kw">tap</span> <span class="mod">btn::START_ROUND</span>
+<span class="fn">2.</span> <span class="kw">for each</span> hole:
+    <span class="fn">-</span> <span class="kw">for each</span> shot:
+        <span class="fn">-</span> <span class="kw">choose</span> your club
+        <span class="fn">-</span> <span class="kw">hit</span> your shot
+        <span class="fn">-</span> <span class="kw">tap</span> <span class="mod">btn::LOG_SHOT</span>
+        <span class="fn">-</span> <span class="kw">walk</span> to your ball
+        <span class="fn">-</span> <span class="kw">if</span> ball in hole:
+            <span class="kw">tap</span> <span class="mod">btn::HOLE_OUT</span>
+<span class="fn">3.</span> <span class="kw">tap</span> <span class="mod">btn::FINISH_ROUND</span></pre>
     </div>
   </div>
 
