@@ -276,6 +276,20 @@
       border: 2px solid #ffaa00;
     }
 
+    .hole-out-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #000;
+      background: #f0c040;
+      border: 2px solid #d4a020;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      animation: drop-in 0.15s ease-out;
+    }
+
     .leaflet-control-attribution {
       background: rgba(0,0,0,0.5) !important;
       color: var(--text-secondary) !important;
@@ -615,7 +629,7 @@
       <div class="club-spacer"></div>
     </div>
     <div class="action-row">
-      <button id="btn-start" class="btn primary">Start new hole</button>
+      <button id="btn-start" class="btn primary">Start new round</button>
       <button id="btn-shot" class="btn" disabled>Log shot</button>
       <button id="btn-finish" class="btn danger" disabled>Finish round</button>
     </div>
@@ -646,10 +660,10 @@
       <div id="info-close-btn" class="modal-close">&times;</div>
       <h2 class="modal-title">Usage</h2>
       <div style="font-size: 13px; line-height: 1.6; color: #999;">
-        <p><strong>1.</strong> Tap <strong>Start new hole</strong> to begin a hole (your first tap starts the round).</p>
+        <p><strong>1.</strong> Tap <strong>Start new round</strong> to begin.</p>
         <p><strong>2.</strong> Hit your shot, then tap <strong>Log Shot</strong> where you stand.</p>
         <p><strong>3.</strong> Walk to your ball. Hit again. Tap <strong>Log Shot</strong>.</p>
-        <p><strong>4.</strong> Repeat to the green. Tap <strong>Start new hole</strong> after logging the hole-out putt.</p>
+        <p><strong>4.</strong> Repeat to the hole. Tap <strong>Hole out</strong> to log the hole-out and start the next hole.</p>
         <p><strong>5.</strong> Tap <strong>Finish round</strong> when the round is complete.</p>
       </div>
     </div>
@@ -764,6 +778,7 @@
         attributionControl: true,
         maxZoom: 20
       });
+      map.attributionControl.setPrefix(false);
 
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles © Esri',
@@ -838,6 +853,24 @@
       markers.push(marker);
     }
 
+    function addHoleOutMarker(lat, lng) {
+      const icon = L.divIcon({
+        className: '',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      const el = document.createElement('div');
+      el.className = 'hole-out-marker';
+      el.style.width = '28px';
+      el.style.height = '28px';
+      el.textContent = '\u2713';
+      icon.options.html = el;
+
+      const marker = L.marker([lat, lng], { icon }).addTo(map);
+      markers.push(marker);
+    }
+
     function clearMarkers() {
       markers.forEach(m => map.removeLayer(m));
       markers = [];
@@ -876,6 +909,7 @@
     function updateButtons() {
       const hasRound = !!state.currentRound;
 
+      btnStart.textContent = hasRound ? 'Hole out' : 'Start new round';
       btnShot.disabled = !hasRound;
       clubRow.classList.toggle('hidden', !hasRound);
 
@@ -962,8 +996,14 @@ function startGeolocation() {
             shot.accuracy > 20
           );
         });
-        if (hole.shots.length >= 2) {
-          const coords = hole.shots.map(s => [s.coordinates.lat, s.coordinates.lng]);
+        if (hole.holedAt) {
+          addHoleOutMarker(hole.holedAt.coordinates.lat, hole.holedAt.coordinates.lng);
+        }
+        const coords = hole.shots.map(s => [s.coordinates.lat, s.coordinates.lng]);
+        if (hole.holedAt) {
+          coords.push([hole.holedAt.coordinates.lat, hole.holedAt.coordinates.lng]);
+        }
+        if (coords.length >= 2) {
           const polyline = L.polyline(coords, {
             color: '#00ff88',
             weight: 2,
@@ -975,7 +1015,7 @@ function startGeolocation() {
       });
     }
 
-    function handleStartHole() {
+    async function handleStartHole() {
       clearPastRoundView();
       clearMarkers();
       if (!state.currentRound) {
@@ -986,6 +1026,21 @@ function startGeolocation() {
           holes: []
         };
         showToast('Round started');
+      } else {
+        try {
+          const pos = await getCurrentPosition();
+          const { latitude, longitude, accuracy } = pos.coords;
+          const hole = state.currentRound.holes.find(h => h.number === state.currentHole);
+          if (hole) {
+            hole.holedAt = {
+              coordinates: { lat: latitude, lng: longitude },
+              timestamp: new Date().toISOString(),
+              accuracy
+            };
+          }
+        } catch (_) {
+          // GPS unavailable — hole-out not tracked, still advance
+        }
       }
 
       const nextHoleNumber = state.currentHole ? state.currentHole + 1 : 1;
@@ -1062,8 +1117,9 @@ function startGeolocation() {
 
       Storage.remove(STORAGE_KEYS.CURRENT_ROUND);
 
-      const holesPlayed = state.currentRound.holes.length;
-      const totalShots = state.currentRound.holes.reduce((sum, h) => sum + h.shots.length, 0);
+      const playedHoles = state.currentRound.holes.filter(h => h.shots.length > 0);
+      const holesPlayed = playedHoles.length;
+      const totalShots = playedHoles.reduce((sum, h) => sum + h.shots.length, 0);
 
       state.currentRound = null;
       state.currentHole = null;
@@ -1124,12 +1180,13 @@ function startGeolocation() {
       rounds.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
 
       historyList.innerHTML = rounds.map((round, idx) => {
-        const holes = round.holes.length;
-        const totalShots = round.holes.reduce((sum, h) => sum + h.shots.length, 0);
+        const playedHoles = round.holes.filter(h => h.shots.length > 0);
+        const holes = playedHoles.length;
+        const totalShots = playedHoles.reduce((sum, h) => sum + h.shots.length, 0);
         const date = formatDate(round.startedAt);
         const time = formatTime(round.startedAt);
 
-        const holesHtml = round.holes.map(h => {
+        const holesHtml = playedHoles.map(h => {
           const clubs = h.shots.map(s => clubShort(s.club)).join(' · ');
           const clubsLine = clubs
             ? `<div class="history-hole-clubs">${clubs}</div>`
@@ -1174,19 +1231,34 @@ function startGeolocation() {
     }
 
     function exportRoundCSV(round) {
-      const header = ['Round ID', 'Date', 'Hole', 'Shot', 'Latitude', 'Longitude', 'Accuracy (m)', 'Club'];
-      const rows = round.holes.flatMap(hole =>
-        hole.shots.map((shot, idx) => [
+      const header = ['Round ID', 'Date', 'Shot Timestamp', 'Hole', 'Shot', 'Latitude', 'Longitude', 'Accuracy (m)', 'Club'];
+      const rows = round.holes.filter(h => h.shots.length > 0).flatMap(hole => {
+        const shotRows = hole.shots.map((shot, idx) => [
           round.id,
           round.startedAt,
+          shot.timestamp,
           hole.number,
           idx + 1,
           shot.coordinates.lat,
           shot.coordinates.lng,
           shot.accuracy,
           shot.club
-        ])
-      );
+        ]);
+        if (hole.holedAt) {
+          shotRows.push([
+            round.id,
+            round.startedAt,
+            hole.holedAt.timestamp,
+            hole.number,
+            'HO',
+            hole.holedAt.coordinates.lat,
+            hole.holedAt.coordinates.lng,
+            hole.holedAt.accuracy,
+            ''
+          ]);
+        }
+        return shotRows;
+      });
 
       const csv = [header, ...rows].map(row =>
         row.map(cell => {
@@ -1210,7 +1282,8 @@ function startGeolocation() {
 
     function viewPastRound(round) {
       clearMarkers();
-      round.holes.forEach(hole => {
+      const playedHoles = round.holes.filter(h => h.shots.length > 0);
+      playedHoles.forEach(hole => {
         hole.shots.forEach((shot, idx) => {
           addShotMarker(
             shot.coordinates.lat,
@@ -1220,8 +1293,14 @@ function startGeolocation() {
             shot.accuracy > 20
           );
         });
-        if (hole.shots.length >= 2) {
-          const coords = hole.shots.map(s => [s.coordinates.lat, s.coordinates.lng]);
+        if (hole.holedAt) {
+          addHoleOutMarker(hole.holedAt.coordinates.lat, hole.holedAt.coordinates.lng);
+        }
+        const coords = hole.shots.map(s => [s.coordinates.lat, s.coordinates.lng]);
+        if (hole.holedAt) {
+          coords.push([hole.holedAt.coordinates.lat, hole.holedAt.coordinates.lng]);
+        }
+        if (coords.length >= 2) {
           const polyline = L.polyline(coords, {
             color: '#00ff88',
             weight: 2,
@@ -1232,7 +1311,11 @@ function startGeolocation() {
         }
       });
 
-      const coords = round.holes.flatMap(h => h.shots.map(s => [s.coordinates.lat, s.coordinates.lng]));
+      const coords = playedHoles.flatMap(h => {
+        const pts = h.shots.map(s => [s.coordinates.lat, s.coordinates.lng]);
+        if (h.holedAt) pts.push([h.holedAt.coordinates.lat, h.holedAt.coordinates.lng]);
+        return pts;
+      });
       if (coords.length > 0) {
         map.fitBounds(coords, { padding: [60, 60], maxZoom: 18 });
       }
