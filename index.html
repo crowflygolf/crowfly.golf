@@ -229,27 +229,6 @@
       box-shadow: 0 0 8px var(--primary);
     }
 
-    .user-marker-arrow {
-      position: absolute;
-      top: -14px;
-      left: 50%;
-      margin-left: -5px;
-      width: 0;
-      height: 0;
-      border-left: 5px solid transparent;
-      border-right: 5px solid transparent;
-      border-bottom: 10px solid var(--primary);
-      transform: rotate(var(--heading, 0deg));
-      transform-origin: center bottom;
-      opacity: 0;
-      transition: opacity 0.3s, transform 0.2s;
-      filter: drop-shadow(0 0 4px var(--primary));
-    }
-
-    .user-marker-arrow.visible {
-      opacity: 1;
-    }
-
     .leaflet-marker-icon.user-marker {
       background: transparent;
     }
@@ -795,8 +774,7 @@
       currentHole: null,
       currentClub: 'DR',
       clubMode: 'golf',
-      isTracking: false,
-      userHeading: null
+      isTracking: false
     };
     let viewingPastRound = false;
     let viewedPastRoundData = null;
@@ -838,7 +816,7 @@
           className: 'user-marker',
           iconSize: [20, 20],
           iconAnchor: [10, 10],
-          html: `<div class="user-marker-inner"></div><div class="user-marker-arrow"></div>`
+          html: `<div class="user-marker-inner"></div>`
         })
       }).addTo(map);
 
@@ -846,24 +824,9 @@
       map.on('zoomend', updateDistanceLabelVisibility);
     }
 
-    function updateUserMarker(lat, lng, heading = null, speed = null) {
+    function updateUserMarker(lat, lng) {
       if (!userMarker) return;
       userMarker.setLatLng([lat, lng]);
-
-      state.userHeading = heading;
-
-      const markerEl = userMarker.getElement();
-      if (markerEl) {
-        const arrow = markerEl.querySelector('.user-marker-arrow');
-        if (arrow) {
-          if (heading !== null && !isNaN(heading)) {
-            arrow.style.setProperty('--heading', `${heading}deg`);
-            arrow.classList.add('visible');
-          } else {
-            arrow.classList.remove('visible');
-          }
-        }
-      }
 
       if (!map.hasLayer(userMarker)) {
         userMarker.addTo(map);
@@ -1014,8 +977,8 @@ function startGeolocation() {
 
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          const { latitude, longitude, accuracy, heading, speed } = pos.coords;
-          updateUserMarker(latitude, longitude, heading, speed);
+          const { latitude, longitude } = pos.coords;
+          updateUserMarker(latitude, longitude);
         },
         (err) => {
           console.error('Geolocation error:', err);
