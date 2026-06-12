@@ -1047,7 +1047,6 @@ function startGeolocation() {
 
     async function handleStartHole() {
       clearPastRoundView();
-      clearMarkers();
       if (!state.currentRound) {
         state.currentRound = {
           id: crypto.randomUUID(),
@@ -1083,6 +1082,7 @@ function startGeolocation() {
       });
 
       saveState();
+      rebuildMarkers();
       updateStatus();
       updateButtons();
       updateClubPill();
