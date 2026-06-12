@@ -738,7 +738,8 @@
     const STORAGE_KEYS = {
       CURRENT_ROUND: 'crowfly_current_round',
       COMPLETED_ROUNDS: 'crowfly_rounds',
-      CLUB_MODE: 'crowfly_club_mode'
+      CLUB_MODE: 'crowfly_club_mode',
+      INFO_SEEN: 'crowfly_info_seen'
     };
 
     const CLUB_SECTIONS = [
@@ -1523,6 +1524,11 @@ function startGeolocation() {
     infoBtn.addEventListener('click', () => infoOverlay.classList.remove('hidden'));
     infoCloseBtn.addEventListener('click', () => infoOverlay.classList.add('hidden'));
     infoBackdrop.addEventListener('click', () => infoOverlay.classList.add('hidden'));
+
+    if (!Storage.get(STORAGE_KEYS.INFO_SEEN)) {
+      infoOverlay.classList.remove('hidden');
+      Storage.set(STORAGE_KEYS.INFO_SEEN, true);
+    }
 
     updateClubPill();
   </script>
